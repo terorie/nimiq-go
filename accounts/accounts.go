@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"terorie.dev/nimiq/address"
 	"terorie.dev/nimiq/policy"
 	"terorie.dev/nimiq/tree"
 	"terorie.dev/nimiq/wire"
@@ -84,6 +85,11 @@ func (a *Accounts) GetAccount(addr *[20]byte) wire.Account {
 }
 
 func (a *Accounts) PutAccount(addr *[20]byte, acc wire.Account) {
+	// Implicitly prune empty basic accounts.
+	if acc == nil || (acc.Type() == wire.AccountBasic && acc.IsEmpty()) {
+		a.Tree.PutEntry(addr, nil)
+		return
+	}
 	wrap := wire.WrapAccount{Account: acc}
 	buf, err := wrap.MarshalBESerial(nil)
 	if err != nil {
@@ -157,14 +163,14 @@ func (a *Accounts) pruneAccounts(block *wire.Block) error {
 	// if they were correctly pruned and if accounts were missed.
 	pruned := make(map[[20]byte]wire.Account)
 	for _, acc := range block.Body.Pruned {
-		pruned[acc.Address] = acc.Account
+		pruned[acc.Address] = acc.Account.Account
 	}
 	// For each transaction that prunes an account,
 	// check whether the prune was correctly quoted in the prune section of the block.
 	for _, tx := range block.Body.Txs {
 		senderAddr, _ := tx.Tx.GetSender()
 		sender := a.GetAccount(senderAddr)
-		if !sender.IsEmpty() {
+		if !sender.IsEmpty() || sender.Type() == wire.AccountBasic {
 			continue
 		}
 		// We found a transaction that forces removal of the sender account.
@@ -182,7 +188,7 @@ func (a *Accounts) pruneAccounts(block *wire.Block) error {
 			}
 		}
 		// Delete account from state tree.
-		a.Tree.PutEntry(senderAddr, nil)
+		a.PutAccount(senderAddr, nil)
 		delete(pruned, *senderAddr)
 	}
 	// Check if the block specified prunes without justification.
@@ -289,7 +295,7 @@ type InvalidPruneError struct {
 }
 
 func (i *InvalidPruneError) Error() string {
-	return fmt.Sprintf("invalid prune of account %x: %s", &i.address, i.error)
+	return fmt.Sprintf("invalid prune of account %s: %s", address.Encode(&i.address), i.error)
 }
 
 func (i *InvalidPruneError) Unwrap() error {

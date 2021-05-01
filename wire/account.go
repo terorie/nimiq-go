@@ -160,11 +160,64 @@ func (c *VestingAccount) Type() uint8 {
 }
 
 func (c *VestingAccount) IsEmpty() bool {
-	panic("not implemented")
+	return c.Value == 0
 }
 
-func (c *VestingAccount) Init(tx Tx, height uint32, prevBalance uint64) error {
-	panic("not implemented")
+func (c *VestingAccount) Init(tx Tx, _ uint32, _ uint64) error {
+	ext := tx.AsExtendedTx()
+	var err error
+	switch len(ext.Data) {
+	case 24:
+		var params struct {
+			Address           [20]byte
+			VestingStepBlocks uint32
+		}
+		err = beserial.UnmarshalFull(ext.Data, &params)
+		if err != nil {
+			return err
+		}
+		c.Owner = params.Address
+		c.VestingStart = 0
+		c.VestingStepBlocks = params.VestingStepBlocks
+		c.VestingStepAmount = ext.Value
+		c.VestingTotalAmount = ext.Value
+	case 36:
+		var params struct {
+			Address           [20]byte
+			VestingStart      uint32
+			VestingStepBlocks uint32
+			VestingStepAmount uint64
+		}
+		err = beserial.UnmarshalFull(ext.Data, &params)
+		if err != nil {
+			return err
+		}
+		c.Owner = params.Address
+		c.VestingStart = params.VestingStart
+		c.VestingStepBlocks = params.VestingStepBlocks
+		c.VestingStepAmount = params.VestingStepAmount
+		c.VestingTotalAmount = ext.Value
+	case 44:
+		var params struct {
+			Address            [20]byte
+			VestingStart       uint32
+			VestingStepBlocks  uint32
+			VestingStepAmount  uint64
+			VestingTotalAmount uint64
+		}
+		err = beserial.UnmarshalFull(ext.Data, &params)
+		if err != nil {
+			return err
+		}
+		c.Owner = params.Address
+		c.VestingStart = params.VestingStart
+		c.VestingStepBlocks = params.VestingStepBlocks
+		c.VestingStepAmount = params.VestingStepAmount
+		c.VestingTotalAmount = params.VestingTotalAmount
+	default:
+		return fmt.Errorf("invalid vesting account")
+	}
+	return nil
 }
 
 // ApplyOutgoingTx removes the transaction value and fee from the account.
@@ -175,6 +228,24 @@ func (c *VestingAccount) ApplyOutgoingTx(tx Tx, _ uint32) (Account, error) {
 // ApplyIncomingTx adds the transaction value to the account.
 func (c *VestingAccount) ApplyIncomingTx(tx Tx, _ uint32) (Account, error) {
 	panic("not implemented")
+}
+
+func (c *VestingAccount) getMinCap(height uint32) uint64 {
+	if height > c.VestingStart {
+		return 0xFFFF_FFFF_FFFF_FFFF
+	}
+	if c.VestingStepBlocks > 0 && c.VestingStepAmount > 0 {
+		progress := float64(height-c.VestingStart) / float64(c.VestingStepBlocks)
+		unlocked := uint64(progress * float64(c.VestingStepAmount))
+		locked := c.VestingTotalAmount - unlocked
+		if locked < 0 {
+			locked = 0
+		}
+		//res := c.VestingTotalAmount -
+		panic("unimplemented")
+	} else {
+		return 0
+	}
 }
 
 // An HTLCAccount (hashed time-locked contract)

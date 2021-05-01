@@ -3,18 +3,22 @@ package main
 import (
 	"archive/tar"
 	"bufio"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
+	"terorie.dev/nimiq/accounts"
 	"terorie.dev/nimiq/beserial"
+	"terorie.dev/nimiq/genesis"
+	"terorie.dev/nimiq/tree"
 	"terorie.dev/nimiq/wire"
 )
 
 func main() {
-	// untar()
-	loadblock()
+	untar()
+	// loadblock()
 }
 
 func loadblock() {
@@ -42,6 +46,21 @@ func untar() {
 	rd := bufio.NewReader(f)
 	archive := tar.NewReader(rd)
 
+	store := tree.NewMemStore()
+	pmTree := tree.PMTree{Store: store}
+	accs := accounts.NewAccounts(&pmTree)
+
+	inf, err := genesis.ReadInfo("genesis/files/testnet.toml")
+	if err != nil {
+		panic(err.Error())
+	}
+	if err := inf.InitAccounts(accs); err != nil {
+		panic(err.Error())
+	}
+	hash := pmTree.Hash()
+	fmt.Println("Genesis,      accounts hash:", hex.EncodeToString(hash[:]))
+
+	_, _ = archive.Next()
 	for {
 		_, err := archive.Next()
 		if err == io.EOF {
@@ -56,6 +75,14 @@ func untar() {
 		var block wire.Block
 		if err := beserial.UnmarshalFull(buf, &block); err != nil {
 			panic("failed to unmarshal block: " + err.Error())
+		}
+		if err := accs.Push(&block); err != nil {
+			panic(fmt.Sprintf("failed to commit block %d: %s", block.Header.Height, err.Error()))
+		}
+		hash := pmTree.Hash()
+		fmt.Printf("Block % 6d, accounts hash: %x\n", block.Header.Height, hash)
+		if block.Header.AccountsHash != hash {
+			panic("accounts hash mismatch, expected: " + hex.EncodeToString(block.Header.AccountsHash[:]))
 		}
 	}
 }
