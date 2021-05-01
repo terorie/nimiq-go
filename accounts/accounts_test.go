@@ -31,9 +31,14 @@ func TestAccounts_Pruning(t *testing.T) {
 		Value:               100,
 		Fee:                 0,
 		ValidityStartHeight: 1,
-		Flags:               0,
-		Data:                nil,
-		NetworkID:           4,
+		Flags:               wire.TxFlagContractCreation,
+		Data: []byte{
+			// Address
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			// Vesting step blocks
+			0x00, 0x00, 0x00, 0x01,
+		},
+		NetworkID: 4,
 	}
 	w.SignExtendedTx(&createTx)
 	require.NoError(t, accounts.Push(&wire.Block{
