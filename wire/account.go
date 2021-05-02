@@ -164,7 +164,7 @@ func (c *VestingAccount) IsEmpty() bool {
 	return c.Value == 0
 }
 
-func (c *VestingAccount) Init(tx Tx, _ uint32, _ uint64) error {
+func (c *VestingAccount) Init(tx Tx, _ uint32, balance uint64) error {
 	ext := tx.(*ExtendedTx)
 	var err error
 	switch len(ext.Data) {
@@ -218,6 +218,7 @@ func (c *VestingAccount) Init(tx Tx, _ uint32, _ uint64) error {
 	default:
 		return fmt.Errorf("invalid vesting account")
 	}
+	c.Value = balance
 	return nil
 }
 
