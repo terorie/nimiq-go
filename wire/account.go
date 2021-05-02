@@ -25,6 +25,7 @@ const (
 	AccountVesting = 1
 	AccountHTLC    = 2
 	AccountStaking = 3 // reserved
+	AccountUnknown = 0xFF
 )
 
 // WrapAccount implements BESerial for Account.
@@ -165,7 +166,7 @@ func (c *VestingAccount) IsEmpty() bool {
 }
 
 func (c *VestingAccount) Init(tx Tx, _ uint32, _ uint64) error {
-	ext := tx.AsExtendedTx()
+	ext := tx.(*ExtendedTx)
 	var err error
 	switch len(ext.Data) {
 	case 24:
@@ -290,7 +291,32 @@ func (h *HTLCAccount) IsEmpty() bool {
 }
 
 func (h *HTLCAccount) Init(tx Tx, height uint32, prevBalance uint64) error {
-	panic("not implemented")
+	// TODO use typed errors
+	ext := tx.(*ExtendedTx)
+	var params struct {
+		Sender    [20]byte
+		Recipient [20]byte
+		Hash      Hash
+		HashCount uint8
+		Timeout   uint32
+	}
+	if err := beserial.UnmarshalFull(ext.Data, &params); err != nil {
+		return fmt.Errorf("invalid HTLC creation data: %w", err)
+	}
+	if params.HashCount == 0 {
+		return fmt.Errorf("invalid hash count: %d", params.HashCount)
+	}
+	// TODO Argon2d type allowed?
+	*h = HTLCAccount{
+		Value:       prevBalance,
+		Sender:      params.Sender,
+		Recipient:   params.Recipient,
+		Hash:        params.Hash,
+		HashCount:   params.HashCount,
+		Timeout:     params.Timeout,
+		TotalAmount: ext.Value,
+	}
+	return nil
 }
 
 // ApplyOutgoingTx removes the transaction value and fee from the account.

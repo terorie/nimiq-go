@@ -111,7 +111,7 @@ func (a *Accounts) pushSenders(block *wire.Block, op AccountOp) error {
 func (a *Accounts) pushRecipients(block *wire.Block, op AccountOp) error {
 	for _, tx := range block.Body.Txs {
 		content := tx.Tx.AsTxContent()
-		var recipientType uint8
+		var recipientType uint8 = wire.AccountUnknown
 		if content.Flags&wire.TxFlagContractCreation == 0 {
 			recipientType = content.RecipientType
 		}
@@ -231,12 +231,16 @@ func (a *Accounts) createContract(tx wire.Tx, height uint32) error {
 			error:   fmt.Errorf("invalid recipient type: %d", content.RecipientType),
 		}
 	}
-	return newAcc.Init(tx, height, acc.Balance())
+	if err := newAcc.Init(tx, height, acc.Balance()); err != nil {
+		return fmt.Errorf("failed to init contract: %w", err)
+	}
+	a.PutAccount(&content.Recipient, newAcc)
+	return nil
 }
 
 func (a *Accounts) pushTx(address *[20]byte, accType uint8, tx wire.Tx, height uint32, op AccountOp) error {
 	account := a.GetAccount(address)
-	if accType != account.Type() {
+	if accType != wire.AccountUnknown && accType != account.Type() {
 		return &AccountTypeMismatchError{
 			Expected: accType,
 			Got:      account.Type(),

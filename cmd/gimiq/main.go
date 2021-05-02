@@ -57,8 +57,8 @@ func untar() {
 	if err := inf.InitAccounts(accs); err != nil {
 		panic(err.Error())
 	}
-	hash := pmTree.Hash()
-	fmt.Println("Genesis,      accounts hash:", hex.EncodeToString(hash[:]))
+	//hash := pmTree.Hash()
+	//fmt.Println("Genesis,      accounts hash:", hex.EncodeToString(hash[:]))
 
 	_, _ = archive.Next()
 	for {

@@ -29,8 +29,8 @@ const (
 
 // Transaction flags.
 const (
-	TxFlagNone             = uint8(0)
-	TxFlagContractCreation = uint8(1 << iota)
+	TxFlagNone             = uint8(0x00)
+	TxFlagContractCreation = uint8(0x01)
 )
 
 // UnmarshalBESerial decodes the transaction from beserial,
