@@ -331,9 +331,10 @@ func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
 		return nil, fmt.Errorf("missing HTLC proof")
 	}
 	proofType := ext.Proof[0]
+	proof := ext.Proof[1:]
 	// TODO enum for proof type
 	switch proofType {
-	case 0:
+	case 1:
 		// Check that the contract has not expired yet.
 		if h.Timeout < height {
 			return nil, fmt.Errorf("HTLC has expired")
@@ -346,7 +347,7 @@ func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
 			PreImage  [32]byte
 			Proof     SignatureProof
 		}
-		if err := beserial.UnmarshalFull(ext.Data, &proofParams); err != nil {
+		if err := beserial.UnmarshalFull(proof, &proofParams); err != nil {
 			return nil, fmt.Errorf("invalid HTLC regular transfer proof: %w", err)
 		}
 		// Verify hash root.
@@ -354,17 +355,17 @@ func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
 			return nil, fmt.Errorf("HTLC hash mismatch")
 		}
 		// Check transaction signature.
-		if proofParams.Proof.SignerAddress() != ext.Recipient {
+		if proofParams.Proof.SignerAddress() != h.Recipient {
 			return nil, fmt.Errorf("invalid recipient signature")
 		}
 		// TODO check min cap
-	case 1:
+	case 2:
 		// Get proof params.
 		var proofParams struct {
 			RecipientProof SignatureProof
 			SenderProof    SignatureProof
 		}
-		if err := beserial.UnmarshalFull(ext.Data, &proofParams); err != nil {
+		if err := beserial.UnmarshalFull(proof, &proofParams); err != nil {
 			return nil, fmt.Errorf("invalid HTLC early resolve proof: %w", err)
 		}
 		// Check that both parties have signed.
@@ -374,7 +375,7 @@ func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
 		if proofParams.SenderProof.SignerAddress() != h.Sender {
 			return nil, fmt.Errorf("invalid sender signature")
 		}
-	case 2:
+	case 3:
 		// Check that the contract has expired.
 		if h.Timeout >= height {
 			return nil, fmt.Errorf("HTLC has not expired yet")
@@ -383,12 +384,14 @@ func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
 		var proofParams struct {
 			Proof SignatureProof
 		}
-		if err := beserial.UnmarshalFull(ext.Data, &proofParams); err != nil {
+		if err := beserial.UnmarshalFull(proof, &proofParams); err != nil {
 			return nil, fmt.Errorf("invalid HTLC timeout resolve proof: %w", err)
 		}
 		if proofParams.Proof.SignerAddress() != h.Sender {
 			return nil, fmt.Errorf("invalid sender signature")
 		}
+	default:
+		return nil, fmt.Errorf("unsupported HTLC proof type: %d", proofType)
 	}
 	// Create copy.
 	updated := new(HTLCAccount)
