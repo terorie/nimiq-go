@@ -3,6 +3,7 @@ package wire
 // ExtendedTx is like a BasicTx but allows non-basic sender & recipients,
 // also non-nil data and complicated proofs.
 type ExtendedTx struct {
+	Data                []byte `beserial:"len_tag=uint16"`
 	Sender              [20]byte
 	SenderType          uint8
 	Recipient           [20]byte
@@ -10,10 +11,9 @@ type ExtendedTx struct {
 	Value               uint64
 	Fee                 uint64
 	ValidityStartHeight uint32
-	Flags               uint8
-	Data                []byte
-	Proof               []byte
 	NetworkID           uint8
+	Flags               uint8
+	Proof               []byte `beserial:"len_tag=uint16"`
 }
 
 // Type returns TxExtended.

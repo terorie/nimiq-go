@@ -157,10 +157,10 @@ func TestMarshal(t *testing.T) {
 
 type customMarshalTest struct{}
 
-func (_ *customMarshalTest) MarshalBESerial(b []byte) ([]byte, error) {
+func (*customMarshalTest) MarshalBESerial(b []byte) ([]byte, error) {
 	return append(b, 0x99, 0xAA), nil
 }
 
-func (_ *customMarshalTest) SizeBESerial() (int, error) {
+func (*customMarshalTest) SizeBESerial() (int, error) {
 	return 2, nil
 }

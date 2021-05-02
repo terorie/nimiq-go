@@ -121,15 +121,18 @@ func MarshalMessage(m Message) (final []byte, err error) {
 // It's entire purpose is in the name: Request the current blockchain head.
 type EmptyMessage uint64
 
-func (_ EmptyMessage) UnmarshalBESerial(_ []byte) (int, error) {
+// UnmarshalBESerial does nothing.
+func (EmptyMessage) UnmarshalBESerial(_ []byte) (int, error) {
 	return 0, nil
 }
 
-func (_ EmptyMessage) MarshalBESerial(b []byte) ([]byte, error) {
+// MarshalBESerial does nothing.
+func (EmptyMessage) MarshalBESerial(b []byte) ([]byte, error) {
 	return b, nil
 }
 
-func (_ EmptyMessage) SizeBESerial() (int, error) {
+// SizeBESerial always returns zero.
+func (EmptyMessage) SizeBESerial() (int, error) {
 	return 0, nil
 }
 

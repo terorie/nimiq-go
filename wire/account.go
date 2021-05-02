@@ -186,6 +186,7 @@ type HTLCAccount struct {
 	Sender      [20]byte
 	Recipient   [20]byte
 	Hash        Hash
+	HashCount   uint8
 	Timeout     uint32
 	TotalAmount uint64
 }
@@ -219,7 +220,7 @@ func (h *HTLCAccount) ApplyIncomingTx(tx Tx, _ uint32) (Account, error) {
 // AccountPruned marks the removal of an account from the state.
 type AccountPruned struct {
 	Address [20]byte
-	Account Account
+	Account WrapAccount
 }
 
 // PublicKeyToAddress derives the NIM address from the Ed25519 public key.

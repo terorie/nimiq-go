@@ -42,9 +42,8 @@ type BasePingMessage struct {
 func (p *BasePingMessage) Type() uint64 {
 	if !p.Pong {
 		return MessagePing
-	} else {
-		return MessagePong
 	}
+	return MessagePong
 }
 
 // UnmarshalBESerial unmarshals the ping message content.

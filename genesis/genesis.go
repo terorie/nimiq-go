@@ -1,4 +1,4 @@
-// Package genesis contains several hardcoded network genesis blocks to choose from.
+// Package genesis provides Nimiq network genesis configs.
 package genesis
 
 import (
@@ -41,6 +41,7 @@ type Config struct {
 	GenesisHash [32]byte
 }
 
+// ReadInfo reads a genesis config TOML file.
 func ReadInfo(path string) (*InitInfo, error) {
 	ext := filepath.Ext(path)
 	if ext != ".toml" {

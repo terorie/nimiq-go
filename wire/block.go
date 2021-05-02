@@ -14,6 +14,7 @@ type Block struct {
 	Body      *BlockBody `beserial:"optional"`
 }
 
+// BlockHeader identifies a block and defines various bits of chain state.
 type BlockHeader struct {
 	Version       uint16
 	PrevHash      [32]byte
@@ -42,6 +43,7 @@ type BlockInterlink struct {
 	Compressed [][32]byte
 }
 
+// UnmarshalBESerial implements the interlink decoding algorithm.
 func (il *BlockInterlink) UnmarshalBESerial(b []byte) (n int, err error) {
 	orig := b
 	// Read count

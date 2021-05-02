@@ -19,6 +19,7 @@ func Unmarshal(data []byte, v interface{}) (n int, err error) {
 	return
 }
 
+// UnmarshalFull is like Unmarshal but errors if some bytes were not consumed.
 func UnmarshalFull(data []byte, v interface{}) error {
 	n, err := Unmarshal(data, v)
 	if err != nil {
@@ -122,7 +123,7 @@ func (d *decodeState) value(v reflect.Value, ts tags) error {
 		}
 	case reflect.Slice, reflect.String:
 		if ts.lenTag == reflect.Invalid {
-			return fmt.Errorf("failed to unmarshal %s: %w", v.Type().String(), ErrNoLenTag)
+			return fmt.Errorf("in %s: %w", v.Type().String(), ErrNoLenTag)
 		}
 		typ := v.Type()
 		u, i, signed, err := d.number(ts.lenTag)
@@ -180,7 +181,7 @@ func (d *decodeState) value(v reflect.Value, ts tags) error {
 				elTs.parse(tag)
 			}
 			if err := d.value(fieldValue, elTs); err != nil {
-				return fmt.Errorf(`failed to read struct "%s" field "%s": %w`,
+				return fmt.Errorf(`in "%s" field "%s": %w`,
 					typ.String(), fieldType.Name, err)
 			}
 		}

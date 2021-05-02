@@ -5,6 +5,7 @@ type InvVector struct {
 	Hash [32]byte
 }
 
+// InvVector type values.
 const (
 	InvError = 0
 	InvTx    = 1

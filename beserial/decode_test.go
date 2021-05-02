@@ -140,6 +140,6 @@ func TestUnmarshal(t *testing.T) {
 
 type customUnmarshalTest struct{}
 
-func (_ *customUnmarshalTest) UnmarshalBESerial(_ []byte) (int, error) {
+func (*customUnmarshalTest) UnmarshalBESerial(_ []byte) (int, error) {
 	return 4, nil
 }

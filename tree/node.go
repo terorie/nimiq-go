@@ -17,6 +17,7 @@ type Branch struct {
 	Children [16]Child
 }
 
+// PutChild sets the child to the hash of another node.
 func (n *Branch) PutChild(suffix Nibbles, hash [32]byte) {
 	n.Children[suffix[0]] = Child{
 		Suffix: suffix,
@@ -25,10 +26,12 @@ func (n *Branch) PutChild(suffix Nibbles, hash [32]byte) {
 	}
 }
 
+// GetPrefix returns the partial path of the node.
 func (n *Branch) GetPrefix() Nibbles {
 	return n.Prefix
 }
 
+// Hash calculates the tree node hash.
 func (n *Branch) Hash() (sum [32]byte) {
 	h, _ := blake2b.New256(nil)
 	h.Write([]byte{0x00, uint8(len(n.Prefix))})
@@ -65,6 +68,7 @@ type Leaf struct {
 	Value  []byte
 }
 
+// GetPrefix returns the partial path of the node.
 func (t *Leaf) GetPrefix() Nibbles {
 	return t.Prefix
 }
@@ -75,6 +79,7 @@ func (t *Leaf) MarshalTo(w io.Writer) {
 	_, _ = w.Write(t.Value)
 }
 
+// Hash calculates the leaf node hash.
 func (t *Leaf) Hash() (sum [32]byte) {
 	h, _ := blake2b.New256(nil)
 	t.MarshalTo(h)

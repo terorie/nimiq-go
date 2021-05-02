@@ -52,6 +52,7 @@ func (h *Hash) UnmarshalBESerial(b []byte) (n int, err error) {
 	if len(b) < size {
 		return 0, beserial.ErrUnexpectedEOF
 	}
+	h.Algorithm = algo
 	h.Bytes = make([]byte, size)
 	copy(h.Bytes, b)
 	n += size

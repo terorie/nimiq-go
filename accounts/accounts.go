@@ -64,6 +64,7 @@ func (a *Accounts) Revert(block *wire.Block) error {
 	panic("not implemented")
 }
 
+// GetAccount looks up an account by its address.
 func (a *Accounts) GetAccount(addr *[20]byte) wire.Account {
 	buf := a.Tree.GetEntry(addr)
 	if len(buf) <= 0 {

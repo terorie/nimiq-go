@@ -6,6 +6,7 @@ type OverlayStore struct {
 	diffs map[string]Node
 }
 
+// GetNode reads a node from the overlay or lower store.
 func (o *OverlayStore) GetNode(nbs Nibbles) Node {
 	// Node was overridden in overlay.
 	override, ok := o.diffs[string(nbs)]
@@ -16,10 +17,12 @@ func (o *OverlayStore) GetNode(nbs Nibbles) Node {
 	return o.Lower.GetNode(nbs)
 }
 
+// PutNode puts a node in the overlay without affecting the lower store.
 func (o *OverlayStore) PutNode(nbs Nibbles, node Node) {
 	o.diffs[string(nbs)] = node
 }
 
+// DelNode marks a deletion in the overlay without affecting the lower store.
 func (o *OverlayStore) DelNode(nbs Nibbles) {
 	o.diffs[string(nbs)] = nil
 }
