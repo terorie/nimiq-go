@@ -87,8 +87,7 @@ func AccountEq(a1, a2 Account) bool {
 	case AccountVesting:
 		return *(a1.(*VestingAccount)) == *(a2.(*VestingAccount))
 	case AccountHTLC:
-		panic("not implemented")
-		//return *(a1.(*HTLCAccount)) == *(a2.(*HTLCAccount))
+		return *(a1.(*HTLCAccount)) == *(a2.(*HTLCAccount))
 	default:
 		panic("invalid account type: " + strconv.FormatUint(uint64(a1Type), 10))
 	}
@@ -287,7 +286,7 @@ func (h *HTLCAccount) Type() uint8 {
 }
 
 func (h *HTLCAccount) IsEmpty() bool {
-	panic("not implemented")
+	return h.Value == 0
 }
 
 func (h *HTLCAccount) Init(tx Tx, height uint32, prevBalance uint64) error {
@@ -320,8 +319,81 @@ func (h *HTLCAccount) Init(tx Tx, height uint32, prevBalance uint64) error {
 }
 
 // ApplyOutgoingTx removes the transaction value and fee from the account.
-func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, _ uint32) (Account, error) {
-	panic("not implemented")
+func (h *HTLCAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
+	// TODO use typed errors
+	ext := tx.(*ExtendedTx)
+	if ext.Value > h.Value {
+		return nil, &OverspendError{Available: h.Value, Spend: ext.Value}
+	}
+	// Read proof type.
+	if len(ext.Proof) == 0 {
+		return nil, fmt.Errorf("missing HTLC proof")
+	}
+	proofType := ext.Proof[0]
+	// TODO enum for proof type
+	switch proofType {
+	case 0:
+		// Check that the contract has not expired yet.
+		if h.Timeout < height {
+			return nil, fmt.Errorf("HTLC has expired")
+		}
+		// Get proof params.
+		var proofParams struct {
+			Algorithm uint8
+			HashDepth uint8
+			HashRoot  [32]byte
+			PreImage  [32]byte
+			Proof     SignatureProof
+		}
+		if err := beserial.UnmarshalFull(ext.Data, &proofParams); err != nil {
+			return nil, fmt.Errorf("invalid HTLC regular transfer proof: %w", err)
+		}
+		// Verify hash root.
+		if proofParams.Algorithm != h.Hash.Algorithm || proofParams.HashRoot != h.Hash.Bytes {
+			return nil, fmt.Errorf("HTLC hash mismatch")
+		}
+		// Check transaction signature.
+		if proofParams.Proof.SignerAddress() != ext.Recipient {
+			return nil, fmt.Errorf("invalid recipient signature")
+		}
+		// TODO check min cap
+	case 1:
+		// Get proof params.
+		var proofParams struct {
+			RecipientProof SignatureProof
+			SenderProof    SignatureProof
+		}
+		if err := beserial.UnmarshalFull(ext.Data, &proofParams); err != nil {
+			return nil, fmt.Errorf("invalid HTLC early resolve proof: %w", err)
+		}
+		// Check that both parties have signed.
+		if proofParams.RecipientProof.SignerAddress() != h.Recipient {
+			return nil, fmt.Errorf("invalid recipient signature")
+		}
+		if proofParams.SenderProof.SignerAddress() != h.Sender {
+			return nil, fmt.Errorf("invalid sender signature")
+		}
+	case 2:
+		// Check that the contract has expired.
+		if h.Timeout >= height {
+			return nil, fmt.Errorf("HTLC has not expired yet")
+		}
+		// Get proof params.
+		var proofParams struct {
+			Proof SignatureProof
+		}
+		if err := beserial.UnmarshalFull(ext.Data, &proofParams); err != nil {
+			return nil, fmt.Errorf("invalid HTLC timeout resolve proof: %w", err)
+		}
+		if proofParams.Proof.SignerAddress() != h.Sender {
+			return nil, fmt.Errorf("invalid sender signature")
+		}
+	}
+	// Create copy.
+	updated := new(HTLCAccount)
+	*updated = *h
+	updated.Value -= ext.Value
+	return updated, nil
 }
 
 // ApplyIncomingTx adds the transaction value to the account.

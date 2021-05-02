@@ -268,16 +268,16 @@ func (a *AccountTypeMismatchError) Error() string {
 }
 
 type InvalidForSenderError struct {
-	address [20]byte
-	error   error
+	Address [20]byte
+	Err     error
 }
 
 func (i *InvalidForSenderError) Error() string {
-	return fmt.Sprintf("invalid for sender %x: %s", &i.address, i.error)
+	return fmt.Sprintf("invalid for sender %x: %s", &i.Address, i.Err)
 }
 
 func (i *InvalidForSenderError) Unwrap() error {
-	return i.error
+	return i.Err
 }
 
 type InvalidForRecipientError struct {
