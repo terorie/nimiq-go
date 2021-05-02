@@ -93,12 +93,13 @@ func AccountEq(a1, a2 Account) bool {
 	}
 }
 
+// An OverspendError means an attempt was made to spend more funds than available.
 type OverspendError struct {
 	Available, Spend uint64
 }
 
 func (o *OverspendError) Error() string {
-	return fmt.Sprintf("overspending: have %d, spending %d", o.Available, o.Spend)
+	return fmt.Sprintf("trying to spend %d but only has %d", o.Spend, o.Available)
 }
 
 // A BasicAccount is a simple account that can hold funds (balance)
@@ -221,8 +222,27 @@ func (c *VestingAccount) Init(tx Tx, _ uint32, _ uint64) error {
 }
 
 // ApplyOutgoingTx removes the transaction value and fee from the account.
-func (c *VestingAccount) ApplyOutgoingTx(tx Tx, _ uint32) (Account, error) {
-	panic("not implemented")
+func (c *VestingAccount) ApplyOutgoingTx(tx Tx, height uint32) (Account, error) {
+	unlocked := c.amountUnlocked(height)
+	// Check transaction amount.
+	extTx := tx.(*ExtendedTx)
+	if extTx.Value > unlocked {
+		return nil, &OverspendError{Available: unlocked, Spend: extTx.Value}
+	}
+	newValue := c.Value - extTx.Value
+	// Verify transaction was signed by contract owner.
+	var proof SignatureProof
+	if err := beserial.UnmarshalFull(extTx.Proof, &proof); err != nil {
+		return nil, fmt.Errorf("in wire.SignatureProof: %w", err)
+	}
+	if proof.SignerAddress() != c.Owner {
+		return nil, fmt.Errorf("invalid signature") // TODO use const error
+	}
+	// Create copy.
+	updated := new(VestingAccount)
+	*updated = *c
+	updated.Value = newValue
+	return updated, nil
 }
 
 // ApplyIncomingTx adds the transaction value to the account.
@@ -230,22 +250,17 @@ func (c *VestingAccount) ApplyIncomingTx(tx Tx, _ uint32) (Account, error) {
 	panic("not implemented")
 }
 
-func (c *VestingAccount) getMinCap(height uint32) uint64 {
-	if height > c.VestingStart {
-		return 0xFFFF_FFFF_FFFF_FFFF
+func (c *VestingAccount) amountUnlocked(height uint32) uint64 {
+	if height <= c.VestingStart {
+		return 0 // cannot spend funds before vesting start
 	}
-	if c.VestingStepBlocks > 0 && c.VestingStepAmount > 0 {
-		progress := float64(height-c.VestingStart) / float64(c.VestingStepBlocks)
-		unlocked := uint64(progress * float64(c.VestingStepAmount))
-		locked := c.VestingTotalAmount - unlocked
-		if locked < 0 {
-			locked = 0
-		}
-		//res := c.VestingTotalAmount -
-		panic("unimplemented")
-	} else {
-		return 0
+	if c.VestingStepBlocks == 0 || c.VestingStepAmount == 0 {
+		return c.Value // unlock immediately
 	}
+	// unlock step by step
+	progress := float64(height-c.VestingStart) / float64(c.VestingStepBlocks)
+	unlocked := uint64(progress * float64(c.VestingStepAmount))
+	return unlocked
 }
 
 // An HTLCAccount (hashed time-locked contract)

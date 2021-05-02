@@ -37,34 +37,26 @@ type BlockBody struct {
 
 // BlockInterlink builds the NIPoPoW proofs.
 type BlockInterlink struct {
+	Repeats    BitSet
 	Hashes     []*[32]byte // pointers to Compressed
 	PrevHash   [32]byte
-	RepeatBits []byte
 	Compressed [][32]byte
 }
 
 // UnmarshalBESerial implements the interlink decoding algorithm.
 func (il *BlockInterlink) UnmarshalBESerial(b []byte) (n int, err error) {
 	orig := b
-	// Read count
-	if len(b) < 1 {
-		return 0, fmt.Errorf("failed to read count: %w", beserial.ErrUnexpectedEOF)
-	}
-	count := b[0]
-	b = b[1:]
-	il.Hashes = make([]*[32]byte, count)
 	// Read repeat bits
-	repeatBitsSize := (count + 7) / 8 // ceil division
-	il.RepeatBits = make([]byte, repeatBitsSize)
-	if len(b) < len(il.RepeatBits) {
-		return 0, fmt.Errorf("failed to read repeat bits: %w", beserial.ErrUnexpectedEOF)
+	n, err = il.Repeats.UnmarshalBESerial(b)
+	if err != nil {
+		return
 	}
-	copy(il.RepeatBits, b)
-	b = b[len(il.RepeatBits):]
+	b = b[n:]
 	// Iterate through bit stream and count bits (number of unique hashes)
+	il.Hashes = make([]*[32]byte, il.Repeats.Len)
 	hash := &il.PrevHash
 	var compressedCount int
-	for _, repeatBits := range il.RepeatBits {
+	for _, repeatBits := range il.Repeats.Bits {
 		compressedCount += 8 - bits.OnesCount8(repeatBits)
 	}
 	// Allocate space for unique hashes
@@ -73,9 +65,8 @@ func (il *BlockInterlink) UnmarshalBESerial(b []byte) (n int, err error) {
 	// Bit 0: New Hash
 	// Bit 1: Repeated Hash
 	var compressedIndex int
-	for i := uint(0); i < uint(count); i++ {
-		repeated := il.RepeatBits[i/8]&(0x80>>(i%8)) != 0
-		if !repeated {
+	for i := uint8(0); i < il.Repeats.Len; i++ {
+		if !il.Repeats.bit(i) {
 			// Point to hash
 			hash = &il.Compressed[compressedIndex]
 			compressedIndex++
@@ -93,8 +84,11 @@ func (il *BlockInterlink) UnmarshalBESerial(b []byte) (n int, err error) {
 }
 
 func (il *BlockInterlink) MarshalBESerial(b []byte) ([]byte, error) {
-	b = append(b, uint8(len(il.Hashes)))
-	b = append(b, il.RepeatBits...)
+	var err error
+	b, err = il.Repeats.MarshalBESerial(b)
+	if err != nil {
+		return b, err
+	}
 	for i := 0; i < len(il.Compressed); i++ {
 		b = append(b, il.Compressed[i][:]...)
 	}
@@ -102,8 +96,10 @@ func (il *BlockInterlink) MarshalBESerial(b []byte) ([]byte, error) {
 }
 
 func (il *BlockInterlink) SizeBESerial() (n int, err error) {
-	n = 1 // hash count
-	n += len(il.RepeatBits)
+	n, err = il.Repeats.SizeBESerial()
+	if err != nil {
+		return
+	}
 	n += len(il.Compressed) * 32
 	return
 }
