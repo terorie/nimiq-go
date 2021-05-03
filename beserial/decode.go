@@ -185,6 +185,19 @@ func (d *decodeState) value(v reflect.Value, ts tags) error {
 					typ.String(), fieldType.Name, err)
 			}
 		}
+	case reflect.Bool:
+		b, err := d.pop(1)
+		if err != nil {
+			return err
+		}
+		switch b[0] {
+		case 0:
+			v.SetBool(false)
+		case 1:
+			v.SetBool(true)
+		default:
+			return fmt.Errorf("not a valid bool value: 0x%02x", b[0])
+		}
 	default:
 		u, i, signed, err := d.number(kind)
 		if err != nil {

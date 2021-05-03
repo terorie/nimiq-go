@@ -7,6 +7,22 @@ import (
 )
 
 func TestMarshal(t *testing.T) {
+	t.Run("Bool", func(t *testing.T) {
+		t.Run("False", func(t *testing.T) {
+			y := false
+			data := []byte{0x00}
+			b, err := Marshal(nil, &y)
+			assert.NoError(t, err)
+			assert.Equal(t, data, b)
+		})
+		t.Run("True", func(t *testing.T) {
+			y := true
+			data := []byte{0x01}
+			b, err := Marshal(nil, &y)
+			assert.NoError(t, err)
+			assert.Equal(t, data, b)
+		})
+	})
 	t.Run("Uint8", func(t *testing.T) {
 		y := uint8(0xCD)
 		data := []byte{0xCD}
@@ -24,6 +40,7 @@ func TestMarshal(t *testing.T) {
 			I32 int32
 			I16 int16
 			I8  int8
+			B   bool
 		}
 		y := s{
 			U64: 0xC0C0_4040_0909_0303,
@@ -34,6 +51,7 @@ func TestMarshal(t *testing.T) {
 			I32: -0x4FEF_EFEF,
 			I16: -2020,
 			I8:  -128,
+			B:   true,
 		}
 		data := []byte{
 			0xC0, 0xC0, 0x40, 0x40, 0x09, 0x09, 0x03, 0x03,
@@ -44,6 +62,7 @@ func TestMarshal(t *testing.T) {
 			0xB0, 0x10, 0x10, 0x11,
 			0xF8, 0x1C,
 			0x80,
+			0x01,
 		}
 		b, err := Marshal(nil, &y)
 		assert.NoError(t, err)

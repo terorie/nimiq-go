@@ -107,6 +107,12 @@ func marshal(v reflect.Value, b []byte, ts tags) ([]byte, error) {
 				return nil, err
 			}
 		}
+	case reflect.Bool:
+		if !v.Bool() {
+			b = append(b, 0x00)
+		} else {
+			b = append(b, 0x01)
+		}
 	default:
 		var ok bool
 		b, ok = marshalNumber(kind, v, b)

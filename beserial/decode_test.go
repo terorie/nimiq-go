@@ -7,6 +7,23 @@ import (
 )
 
 func TestUnmarshal(t *testing.T) {
+	t.Run("Bool", func(t *testing.T) {
+		t.Run("False", func(t *testing.T) {
+			var x bool
+			assert.NoError(t, UnmarshalFull([]byte{0x00}, &x))
+			assert.False(t, x)
+		})
+		t.Run("True", func(t *testing.T) {
+			var x bool
+			assert.NoError(t, UnmarshalFull([]byte{0x01}, &x))
+			assert.True(t, x)
+		})
+		t.Run("Invalid", func(t *testing.T) {
+			var x bool
+			assert.EqualError(t, UnmarshalFull([]byte{0x02}, &x), "not a valid bool value: 0x02")
+			assert.False(t, x)
+		})
+	})
 	t.Run("Uint8", func(t *testing.T) {
 		var x uint8
 		assert.NoError(t, UnmarshalFull([]byte{0xFE}, &x))
@@ -22,6 +39,7 @@ func TestUnmarshal(t *testing.T) {
 			I32 int32
 			I16 int16
 			I8  int8
+			B   bool
 		}
 		x := s{
 			U64: 0xC0C0_4040_0909_0303,
@@ -32,6 +50,7 @@ func TestUnmarshal(t *testing.T) {
 			I32: -0x4FEF_EFEF,
 			I16: -2020,
 			I8:  -128,
+			B:   true,
 		}
 		var y s
 		assert.NoError(t, UnmarshalFull([]byte{
@@ -43,6 +62,7 @@ func TestUnmarshal(t *testing.T) {
 			0xB0, 0x10, 0x10, 0x11,
 			0xF8, 0x1C,
 			0x80,
+			0x01,
 		}, &y))
 		assert.Equal(t, &x, &y)
 	})
