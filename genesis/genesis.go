@@ -2,10 +2,10 @@
 package genesis
 
 import (
+	"embed"
 	"fmt"
-	"io/ioutil"
+	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/pelletier/go-toml"
 	"terorie.dev/nimiq/accounts"
@@ -13,16 +13,11 @@ import (
 	"terorie.dev/nimiq/wire"
 )
 
-// InitInfo describes genesis config and related blockchain data.
-type InitInfo struct {
+// Profile describes genesis config and related blockchain data.
+type Profile struct {
 	Config   *Config
 	Block    wire.Block
-	Accounts []Account `beserial:"len_tag=uint16"`
-}
-
-type Context struct {
-	Config *Config
-	Header wire.BlockHeader
+	Accounts []Account
 }
 
 // Account is a genesis account entry.
@@ -41,28 +36,63 @@ type Config struct {
 	GenesisHash [32]byte
 }
 
-// ReadInfo reads a genesis config TOML file.
-func ReadInfo(path string) (*InitInfo, error) {
-	ext := filepath.Ext(path)
-	if ext != ".toml" {
-		return nil, fmt.Errorf("not a toml file: %s", path)
+// InitAccounts inserts the genesis accounts to the accounts tree.
+func (i *Profile) InitAccounts(a *accounts.Accounts) error {
+	for _, acc := range i.Accounts {
+		a.PutAccount(&acc.Address, acc.Account.Account)
 	}
-	conf, err := ReadConfig(path)
+	if err := a.Push(&i.Block); err != nil {
+		return fmt.Errorf("failed to push genesis block: %w", err)
+	}
+	if hash := a.Tree.Hash(); hash != i.Block.Header.AccountsHash {
+		return fmt.Errorf("unexpected tree hash: %x vs %x",
+			hash, i.Block.Header.AccountsHash)
+	}
+	return nil
+}
+
+//go:embed files/*
+var embedFiles embed.FS
+
+// Hardcoded profile IDs for use in OpenProfile.
+const (
+	ProfileMain = "main"
+	ProfileTest = "test"
+)
+
+// OpenProfile reads a genesis profile from hardcoded info or the file system.
+func OpenProfile(path string) (*Profile, error) {
+	profiles, err := fs.Sub(embedFiles, "files")
+	if err != nil {
+		panic("invalid hardcoded profiles: " + err.Error())
+	}
+	switch path {
+	case ProfileMain:
+		return openProfileFromFS(profiles, ProfileMain)
+	case ProfileTest:
+		return openProfileFromFS(profiles, ProfileTest)
+	}
+	return openProfileFromFS(os.DirFS("."), path)
+}
+
+func openProfileFromFS(files fs.FS, path string) (*Profile, error) {
+	tomlPath := path + ".toml"
+	conf, err := readConfigFromFS(files, tomlPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config toml: %w", err)
 	}
-	info := new(InitInfo)
+	info := new(Profile)
 	info.Config = conf
-	blockPath := path[:len(path)-len(ext)] + ".block.bin"
-	blockBuf, err := ioutil.ReadFile(blockPath)
+	blockPath := path + ".block.bin"
+	blockBuf, err := fs.ReadFile(files, blockPath)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to read block: %w`, err)
 	}
 	if err := beserial.UnmarshalFull(blockBuf, &info.Block); err != nil {
 		return nil, fmt.Errorf(`failed to unmarshal block: %w`, err)
 	}
-	accountsPath := path[:len(path)-len(ext)] + ".accounts.bin"
-	accountsBuf, err := ioutil.ReadFile(accountsPath)
+	accountsPath := path + ".accounts.bin"
+	accountsBuf, err := fs.ReadFile(files, accountsPath)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to read accounts: %w`, err)
 	}
@@ -76,8 +106,8 @@ func ReadInfo(path string) (*InitInfo, error) {
 	return info, nil
 }
 
-func ReadConfig(path string) (conf *Config, err error) {
-	f, openErr := os.Open(path)
+func readConfigFromFS(files fs.FS, path string) (conf *Config, err error) {
+	f, openErr := files.Open(path)
 	if openErr != nil {
 		return nil, openErr
 	}
@@ -86,19 +116,4 @@ func ReadConfig(path string) (conf *Config, err error) {
 	conf = new(Config)
 	err = dec.Decode(conf)
 	return
-}
-
-// InitAccounts inserts the genesis accounts to the accounts tree.
-func (i *InitInfo) InitAccounts(a *accounts.Accounts) error {
-	for _, acc := range i.Accounts {
-		a.PutAccount(&acc.Address, acc.Account.Account)
-	}
-	if err := a.Push(&i.Block); err != nil {
-		return fmt.Errorf("failed to push genesis block: %w", err)
-	}
-	if hash := a.Tree.Hash(); hash != i.Block.Header.AccountsHash {
-		return fmt.Errorf("unexpected tree hash: %x vs %x",
-			hash, i.Block.Header.AccountsHash)
-	}
-	return nil
 }

@@ -4,10 +4,12 @@ import (
 	"archive/tar"
 	"bufio"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"terorie.dev/nimiq/accounts"
 	"terorie.dev/nimiq/beserial"
@@ -17,30 +19,19 @@ import (
 )
 
 func main() {
-	untar()
-	// loadblock()
-}
+	blocksPath := flag.String("blocksPath", "", "Blocks dump file (required)")
+	profile := flag.String("profile", genesis.ProfileTest, "Genesis profile")
+	debug := flag.Bool("debug", false, "Print debug information")
+	flag.Parse()
 
-func loadblock() {
-	f, err := os.Open("43962")
-	if err != nil {
-		panic(err.Error())
+	if *blocksPath == "" {
+		flag.Usage()
+		os.Exit(1)
 	}
-	defer f.Close()
-	buf, err := ioutil.ReadAll(f)
-	if err != nil {
-		panic(err.Error())
-	}
-	var block wire.Block
-	if err := beserial.UnmarshalFull(buf, &block); err != nil {
-		fmt.Println("Failed to unmarshal block: ", err.Error())
-	}
-}
 
-func untar() {
-	f, err := os.Open("blocks.tar")
+	f, err := os.Open(*blocksPath)
 	if err != nil {
-		panic(err.Error())
+		panic("failed to load blocks: " + err.Error())
 	}
 	defer f.Close()
 	rd := bufio.NewReader(f)
@@ -50,16 +41,17 @@ func untar() {
 	pmTree := tree.PMTree{Store: store}
 	accs := accounts.NewAccounts(&pmTree)
 
-	inf, err := genesis.ReadInfo("genesis/files/testnet.toml")
+	inf, err := genesis.OpenProfile(*profile)
 	if err != nil {
-		panic(err.Error())
+		panic("failed to load profile: " + err.Error())
 	}
 	if err := inf.InitAccounts(accs); err != nil {
 		panic(err.Error())
 	}
-	//hash := pmTree.Hash()
-	//fmt.Println("Genesis,      accounts hash:", hex.EncodeToString(hash[:]))
 
+	start := time.Now()
+	blocks := 0
+	txs := 0
 	_, _ = archive.Next()
 	for {
 		_, err := archive.Next()
@@ -80,9 +72,16 @@ func untar() {
 			panic(fmt.Sprintf("failed to commit block %d: %s", block.Header.Height, err.Error()))
 		}
 		hash := pmTree.Hash()
-		fmt.Printf("Block % 6d, accounts hash: %x\n", block.Header.Height, hash)
+		if *debug {
+			fmt.Printf("Block % 6d\n", block.Header.Height)
+		}
 		if block.Header.AccountsHash != hash {
 			panic("accounts hash mismatch, expected: " + hex.EncodeToString(block.Header.AccountsHash[:]))
 		}
+		blocks++
+		txs += len(block.Body.Txs)
 	}
+	fmt.Println("Blocks:", blocks)
+	fmt.Println("Txs:", txs)
+	fmt.Println("Time:", time.Since(start))
 }
